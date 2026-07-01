@@ -1,101 +1,85 @@
-import streamlit as range_utils
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont
-import time
-import random
+from PIL import Image
+import torch
+from torchvision import models, transforms
+import requests
 
-# Configuração da página do Streamlit
-st.set_page_config(
-    page_title="Simulador de Visão Computacional",
-    page_icon="👁️",
-    layout="centered"
-)
+# Configuração da página
+st.set_page_config(page_title="IA de Visão Computacional Real", page_icon="🧠", layout="centered")
 
-# Título e descrição do projeto
-st.title("👁️ Simulador de Visão Computacional")
-st.subheader("Atividade Acadêmica: Detecção de Objetos Baseada em Regras")
-st.write(
-    "Este aplicativo simula o funcionamento de um modelo de Inteligência Artificial "
-    "para detecção de objetos de forma leve, utilizando lógica de programação simples "
-    "e processamento digital de imagens com a biblioteca Pillow (PIL)."
-)
+st.title("🧠 Inteligência Artificial Real: Classificação de Imagens")
+st.subheader("Atividade Acadêmica: Rede Neural MobileNetV2")
+st.write("Agora o sistema utiliza uma rede neural profunda real, treinada com milhões de imagens (ImageNet), para identificar o objeto predominante na sua foto.")
 
 st.markdown("---")
 
-# Seção de Upload da Imagem pelo usuário
-st.sidebar.header("⚙️ Configurações")
-uploaded_file = st.sidebar.file_uploader(
-    "Escolha uma imagem (JPG, PNG ou JPEG):", 
-    type=["jpg", "jpeg", "png"]
-)
+# Função para carregar as etiquetas (nomes das classes) do ImageNet
+@st.cache_resource
+def carregar_modelo_e_labels():
+    # Carrega o modelo de IA leve pré-treinado
+    modelo = models.mobilenet_v2(weights=models.MobileNetV2_Weights.DEFAULT)
+    modelo.eval() # Coloca o modelo em modo de inferência (teste)
+    
+    # Baixa a lista de nomes dos objetos que a IA consegue reconhecer
+    url = "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
+    labels = requests.get(url).text.splitlines()
+    
+    return modelo, labels
 
-# Seleção do objeto que o usuário deseja "detectar"
-objeto_alvo = st.sidebar.selectbox(
-    "O que você deseja detectar na imagem?",
-    ["Pessoa", "Carro", "Animal (Cão/Gato)", "Celular"]
-)
+try:
+    modelo, labels = carregar_modelo_e_labels()
+except Exception as e:
+    st.error("Erro ao carregar o modelo de IA. Verifique a conexão.")
+
+# Upload da imagem
+uploaded_file = st.sidebar.file_uploader("Escolha uma imagem:", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # 1. Carregar a imagem usando a biblioteca PIL
-    imagem_original = Image.open(uploaded_file).convert("RGB")
-    largura, altura = imagem_original.size
-
-    # Criar duas colunas para visualização (Antes e Depois)
+    imagem = Image.open(uploaded_file).convert("RGB")
+    
     col1, col2 = st.columns(2)
-
     with col1:
-        st.image(imagem_original, caption="Imagem Original", use_container_width=True)
-
+        st.image(imagem, caption="Imagem Enviada", use_container_width=True)
+        
     with col2:
-        # Botão para iniciar a simulação do escaneamento
-        if st.button("🔍 Iniciar Detecção Simulada"):
-            
-            # Simulação de um tempo de processamento (efeito visual para o usuário)
-            with st.spinner("Analisando pixels e aplicando lógica baseada em regras..."):
-                time.sleep(1.5)  # Pausa de 1.5 segundos
+        if st.button("🧠 Executar Inteligência Artificial"):
+            with st.spinner("A Rede Neural está analisando os padrões de pixels..."):
                 
-            # 2. Lógica Simples Baseada em Regras (Simulação)
-            # Para fins didáticos, vamos extrair a cor média do centro da imagem
-            # e usá-la como uma "falsa métrica de confiança" do algoritmo.
-            pixel_centro = imagem_original.getpixel((largura // 2, altura // 2))
-            confianca_simulada = round(max(50.0, min(99.0, (pixel_centro[0] + pixel_centro[1] + pixel_centro[2]) / 3)), 2)
-
-            # 3. Desenhar o Bounding Box (Caixa de Delimitação) Falso
-            # Criamos uma cópia da imagem para não alterar a original
-            imagem_processada = imagem_original.copy()
-            draw = ImageDraw.Draw(imagem_processada)
-            
-            # Define coordenadas fictícias/aleatórias para a caixa com base no tamanho da imagem
-            # Garante que a caixa fique centralizada de forma dinâmica
-            x1 = int(largura * 0.25)
-            y1 = int(altura * 0.25)
-            x2 = int(largura * 0.75)
-            y2 = int(altura * 0.75)
-            
-            # Desenha o retângulo (Bounding Box) na imagem com cor verde
-            draw.rectangle([x1, y1, x2, y2], outline="green", width=5)
-            
-            # Adiciona o texto com a classe detectada e a confiança simulada
-            texto_exibido = f"{objeto_alvo}: {confianca_simulada}%"
-            
-            # Tenta desenhar o texto logo acima da caixa
-            draw.text((x1 + 5, y1 + 5), texto_exibido, fill="green")
-
-            # Exibe a imagem com a detecção simulada na tela
-            st.image(imagem_processada, caption="Resultado da Detecção", use_container_width=True)
-            
-            # Exibe métricas de sucesso acadêmico
-            st.success(f"🎉 Sucesso! Objeto '{objeto_alvo}' simulado com {confianca_simulada}% de confiança.")
-            st.info(
-                f"**Nota Didática:** O sistema simulou a detecção desenhando uma caixa fixa "
-                f"nas coordenadas [{x1}, {y1}, {x2}, {y2}] baseado no tamanho da sua imagem ({largura}x{altura}px)."
-            )
-        else:
-            st.warning("Clique no botão acima para processar a imagem.")
-
+                # Preparação da imagem para a IA (Redimensionar e Normalizar)
+                transformacao = transforms.Compose([
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225]
+                    )
+                ])
+                
+                # Aplica a transformação e adiciona uma dimensão de lote (batch)
+                tensor_imagem = transformacao(imagem).unsqueeze(0)
+                
+                # Executa a IA sem calcular gradientes (mais rápido e gasta menos memória)
+                with torch.no_grad():
+                    outputs = modelo(tensor_imagem)
+                    # Aplica Softmax para transformar os resultados em porcentagens (probabilidades)
+                    probabilidades = torch.nn.functional.softmax(outputs[0], dim=0)
+                
+                # Pega o resultado com maior certeza
+                id_classe_mais_alta = torch.argmax(probabilidades).item()
+                nome_objeto = labels[id_classe_mais_alta]
+                confianca = probabilidades[id_classe_mais_alta].item() * 100
+                
+                # Exibe o resultado real
+                st.success(f"🎉 **Identificado:** {nome_objeto.capitalize()}")
+                st.info(f"🎯 **Grau de Certeza da IA:** {confianca:.2f}%")
+                
+                # Nota acadêmica explicativa
+                st.markdown("### 📊 Como a IA pensou?")
+                st.write(
+                    "A imagem foi convertida em uma matriz numérica (tensor). A rede neural "
+                    "passou esses números por várias camadas de convolução, extraindo características como formatos, "
+                    "texturas e cores, até concluir qual objeto da base de dados se parecia mais com o enviado."
+                )
 else:
-    # Mensagem caso nenhuma imagem tenha sido carregada ainda
-    st.info("💡 Por favor, carregue uma imagem no menu lateral para começar a simulação.")
-
-st.markdown("---")
-st.caption("Desenvolvido para fins acadêmicos e demonstração lógica de estruturas de dados aplicadas a imagens.")
+    st.info("💡 Carregue uma imagem para testar a IA real!")
